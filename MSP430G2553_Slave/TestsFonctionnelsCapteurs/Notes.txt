@@ -1,0 +1,3 @@
+Sur le Slave:
+	Capteur UV
+	Capteur HD (+ écran)
