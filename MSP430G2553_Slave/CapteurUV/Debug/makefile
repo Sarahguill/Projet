@@ -11,7 +11,6 @@ GEN_CMDS__FLAG :=
 
 ORDERED_OBJS += \
 "./main.obj" \
-"./null.obj" \
 "../lnk_msp430g2553.cmd" \
 $(GEN_CMDS__FLAG) \
 -llibc.a \
@@ -155,8 +154,8 @@ CapteurUV.hex: $(EXE_OUTPUTS)
 # Other Targets
 clean:
 	-$(RM) $(BIN_OUTPUTS__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "main.obj" "null.obj" 
-	-$(RM) "main.d" "null.d" 
+	-$(RM) "main.obj" 
+	-$(RM) "main.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 

@@ -32,6 +32,8 @@
 #include<msp430.h>
 #include<stdint.h>
 #include<stdbool.h>
+#include <string.h>
+#include <stdio.h>
 
 /*
  * Program def.
@@ -39,8 +41,11 @@
 #define     _UV_SENSOR      BIT4        // A4
 #define     _BUZZER_PH      BIT2        // TA1.1, Phase
 #define     _BUZZER_APH     BIT3        // TA1.0, Anti-Phase
+#define     CMDLEN          12               // longueur maximum de la commande utilisateur
+#define     LF              0x0A
+#define     CR              0x0D
 
-#define     IDX_0           50
+/*#define     IDX_0           50
 #define     IDX_1           150
 #define     IDX_2           186
 #define     IDX_3           279
@@ -51,27 +56,151 @@
 #define     IDX_8           745
 #define     IDX_9           838
 #define     IDX_10          931
-#define     IDX_11          1000
+#define     IDX_11          1000*/
 
 /*
  * Program const.
  */
 
 
-/*
- * Prototypes
- */
-voidinitClockTo1MHz( void );
-voidinitGPIO( void );
-voidinit_ADC( void );
-uint16_tReadADC( uint16_t );
-uint16_tLowPassReadADC( uint16_t );
+/***********************************
+ * Appel aux fonctions/Prototypes
+ ***********************************/
+void InitUART(void);
+void RXdata(unsigned char *c);
+void TXdata(unsigned char c);
+void Send_STR_UART(const char *msg);
+void command( char *cmd );
+void initClockTo1MHz( void );
+void initGPIO( void );
+void init_ADC( void );
+uint16_t ReadADC( uint16_t analog );
+uint16_t LowPassReadADC( uint16_t analog );
 
+
+/***********************************
+ * Les fonctions
+ ***********************************/
+
+void InitUART(void)
+{
+    P1SEL |= (BIT1 + BIT2);                 // P1.1 = RXD, P1.2=TXD
+    P1SEL2 |= (BIT1 + BIT2);                // P1.1 = RXD, P1.2=TXD
+    UCA0CTL1 |= UCSSEL_2;                   // SMCLK
+    UCA0BR0 = 104;                          // 1MHz, 9600
+    UCA0BR1 = 0;                            // 1MHz, 9600
+    UCA0CTL0 &= ~UCPEN & ~UCPAR & ~UCMSB;
+    UCA0CTL0 &= ~UC7BIT & ~UCSPB & ~UCMODE1;
+    UCA0CTL0 &= ~UCMODE0 & ~UCSYNC;
+    UCA0CTL1 &= ~UCSWRST;                   // **Initialize USCI state machine**
+}
+
+void RXdata(unsigned char *c)
+{
+    while (!(IFG2&UCA0RXIFG));              // buffer Rx USCI_A0 plein ?
+    *c = UCA0RXBUF;
+}
+
+void TXdata( unsigned char c )
+{
+    while (!(IFG2&UCA0TXIFG));              // buffer Tx USCI_A0 vide ?
+    UCA0TXBUF = c;
+}
+
+void Send_STR_UART(const char *msg)
+{
+    int i = 0;
+    for(i=0 ; msg[i] != 0x00 ; i++)
+    {
+        TXdata(msg[i]);
+    }
+}
+
+void command( char *cmd )
+{
+
+    uint16_t indiceUV = 0;
+    uint16_t uv_level = 0;
+    uv_level = LowPassReadADC(_UV_SENSOR);
+    char UV[1];
+
+    if(strcmp(cmd, "H") == 0)          // aide
+      {
+        __delay_cycles(100000);
+
+        //P1OUT |= BIT6;
+        Send_STR_UART("\r\nAide : Commandes existantes :\n");
+        Send_STR_UART("\r\n'H' : Afficher l'aide\n");
+        Send_STR_UART("\r\n'U' : Afficher l'indice UV\n");
+      }
+    else if (strcmp(cmd, "U") == 0)     // ouverture
+    {
+        __delay_cycles(100000);
+        if(uv_level<50)
+        {
+           indiceUV = 0;
+        }
+        else if(((uint16_t)uv_level >= 50) &&  ((uint16_t)uv_level < 272))
+        {
+           indiceUV = 1;
+        }
+        else if(((uint16_t)uv_level >= 272) &&  ((uint16_t)uv_level < 363))
+        {
+           indiceUV = 2;
+        }
+        else if(((uint16_t)uv_level >= 363) &&  ((uint16_t)uv_level < 455))
+        {
+           indiceUV = 3;
+        }
+        else if(((uint16_t)uv_level >= 455) &&  ((uint16_t)uv_level < 554))
+        {
+           indiceUV = 4;
+        }
+        else if(((uint16_t)uv_level >= 554) &&  ((uint16_t)uv_level < 651))
+        {
+           indiceUV = 5;
+        }
+        else if(((uint16_t)uv_level >= 651) && ((uint16_t)uv_level < 745))
+        {
+           indiceUV = 6;
+        }
+        else if(((uint16_t)uv_level >= 745) &&  ((uint16_t)uv_level < 838))
+        {
+           indiceUV = 7;
+        }
+        else if(((uint16_t)uv_level >= 838) &&  ((uint16_t)uv_level < 928))
+        {
+           indiceUV = 8;
+        }
+        else if(((uint16_t)uv_level >= 928) &&  ((uint16_t)uv_level < 1027))
+        {
+           indiceUV = 9;
+        }
+        else if(((uint16_t)uv_level >= 1027) &&  ((uint16_t)uv_level < 1124))
+        {
+           indiceUV = 10;
+        }
+        else //if(uv_level >= 1124)
+        {
+           indiceUV = 11;
+        }
+        UV[0] = (char)(indiceUV + 0x30);
+        Send_STR_UART("\rIndice UV : ");
+        Send_STR_UART((const char*)&UV[0]);
+        Send_STR_UART("\n");
+    }
+    else
+    {
+      Send_STR_UART("\rMauvaise commande ");
+      Send_STR_UART(cmd);
+      Send_STR_UART("\rEntrez 'H' pour l'aide\n");
+    }
+}
 
 /*
  * Clock init.
  */
-voidinitClockTo1MHz( void )
+void initClockTo1MHz( void )
 {
     if( (CALBC1_1MHZ == 0xFF) || (CALDCO_1MHZ == 0xFF) )
     {
@@ -87,31 +216,12 @@ voidinitClockTo1MHz( void )
 }
 
 
-/*
- * GPIO general init.
- */
-voidinitGPIO( void )
-{
-    //--- Secure mode
-    P1SEL  = 0x00;        // GPIO
-    P1SEL2 = 0x00;
-    P2SEL  = 0x00;        // GPIO
-    P2SEL2 = 0x00;
-    P3SEL  = 0x00;        // GPIO
-    P3SEL2 = 0x00;
-    P1DIR  = 0x00;        // IN
-    P2DIR  = 0x00;        // IN
-    P3DIR  = 0x00;        // IN
-    P3REN  = 0xFF;
-    //---
-}
-
 /* ----------------------------------------------------------------------------
  * Fonction d'initialisation de l'ADC
  * Entrees : -
  * Sorties: -
  */
-voidinit_ADC( void )
+void init_ADC( void )
 {
     ADC10CTL0 = 0x00;
     ADC10CTL1 = 0x00;
@@ -125,7 +235,7 @@ voidinit_ADC( void )
  * Entrees : numero de voie
  * Sorties: valeur convertie
  */
-uint16_tReadADC(uint16_t analog)
+uint16_t ReadADC(uint16_t analog)
 {
     ADC10CTL1 |= (analog * 0x1000u );
     ADC10CTL0 |= ENC | ADC10SC;
@@ -140,34 +250,62 @@ uint16_tReadADC(uint16_t analog)
  * Entrees : numero de voie
  * Sorties: valeur convertie
  */
-uint16_tLowPassReadADC(uint16_t analog)
+uint16_t LowPassReadADC(uint16_t analog)
 {
     uint16_t lp = 0;
     uint16_t i = 0;
     for( i=63; i > 1; i--)
-        lp += ReadADC(analog);
+       lp += ReadADC(analog);
     return(lp>>6);
 }
 
-/*              °
- *    # #   ##  # #  #    ###
- *   # # # #  # # ## #   #
- *   #   # #### # # ##   #
- *   #   # #  # # #  # o  ###
- */
-voidmain(void)
+
+/***********************************
+ * Le main
+ ***********************************/
+void main(void)
 {
-    WDTCTL = WDTPW | WDTHOLD;// stop watchdog timer
 
-    uint16_t uv_level = 0;
+    unsigned char c;
+    char  cmd[CMDLEN];      // tableau de caractere lie a la commande user
+    int   nb_car;           // compteur nombre carateres saisis
 
-    initClockTo1MHz();
-    initGPIO();
+    WDTCTL = WDTPW + WDTHOLD;   // Stop WDT
+    // clock calibration verification
+    if(CALBC1_1MHZ==0xFF || CALDCO_1MHZ==0xFF)
+      __low_power_mode_4();
+    // factory calibration parameters
+    DCOCTL = 0;
+    BCSCTL1 = CALBC1_1MHZ;
+    DCOCTL = CALDCO_1MHZ;
+
+    InitUART();
+    //initClockTo1MHz();
+    //initGPIO();
     init_ADC();
 
-    do
+    P1SEL &= ~(0x10);
+    P1SEL2 &= ~(0x10);
+    P1DIR &= ~(0x10);
+
+    nb_car = 0;
+    Send_STR_UART("MSP430 Ready !\n");
+    while(1)
     {
-        uv_level = LowPassReadADC(_UV_SENSOR);
-        __delay_cycles(500);
-    }while(1);
+        if( nb_car<(CMDLEN-1) )
+        {
+            RXdata(&c);
+            if( (cmd[nb_car]=c) != CR )
+            {
+                TXdata(c);
+                nb_car++;
+            }
+            else
+            {
+              cmd[nb_car]=0x00;
+              command(cmd);
+              nb_car=0;
+            }
+        }
+    }
 }
